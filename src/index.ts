@@ -1,40 +1,17 @@
 import * as fs from 'node:fs'
-import {
-  MnemonicWallet,
-  WalletHandler,
-  FileUploadHandler,
-  cryptString,
-  genIv,
-  genKey
-} from '@jackallabs/jackal.nodejs'
-import type {
-  IFileDownloadHandler, IUploadList
-} from '@jackallabs/jackal.nodejs'
-import ErrnoException = NodeJS.ErrnoException
+import type {IFileDownloadHandler, IUploadList} from '@jackallabs/jackal.nodejs'
+import {FileUploadHandler, IWalletHandler, MnemonicWallet, WalletHandler} from '@jackallabs/jackal.nodejs'
+import ErrnoException = NodeJS.ErrnoException;
 
 const mnemonic = 'capital chunk piano supreme photo beef age boy retire vote kitchen under'
-const fileName = 'app.toml3.txt'
+const fileName = 'kyve-test.toml.txt'
 const sampleDir = 'Node3'
-const runVerify = true
-// const runVerify = false
-// const downloadOnly = true
-const downloadOnly = false
 
 const signerChain = 'lupulella-2'
 const testnet = {
   signerChain,
   queryAddr: 'https://testnet-grpc.jackalprotocol.com',
   txAddr: 'https://testnet-rpc.jackalprotocol.com'
-}
-
-async function verifyCrypt() {
-  const iv = genIv()
-  const key = await genKey()
-  const test = 'hello world'
-  const enc = await cryptString(test, key, iv, 'encrypt')
-  console.log('enc:', enc)
-  const dec = await cryptString(enc, key, iv, 'decrypt')
-  console.log('dec:', dec)
 }
 
 async function run() {
@@ -67,7 +44,7 @@ async function run() {
     const handler = await FileUploadHandler.trackFile(toUpload, dir.getMyPath())
 
     const uploadList: IUploadList = {}
-    uploadList[fileName] =  {
+    uploadList[fileName] = {
       data: null,
       exists: false,
       handler: handler,
@@ -76,16 +53,17 @@ async function run() {
     }
 
     const tracker = {timer: 0, complete: 0}
+    console.log("I AM BEFORE THE UPLOAD")
     await fileIo.staggeredUploadFiles(uploadList, dir, tracker)
 
     const dirAgain = await fileIo.downloadFolder("s/" + sampleDir)
     const dl = await fileIo.downloadFile({
-      rawPath: dirAgain.getMyChildPath(fileName),
-      owner: w.getJackalAddress()
+        rawPath: dirAgain.getMyChildPath(fileName),
+        owner: w.getJackalAddress()
       },
-    {
-      track: 0
-    }) as IFileDownloadHandler
+      {
+        track: 0
+      }) as IFileDownloadHandler
 
     fs.writeFileSync(
       `./test-files/dl/${fileName}`,
@@ -117,22 +95,80 @@ async function tryDownload() {
   )
 }
 
-(async function() {
-  if (runVerify) {
-    await verifyCrypt()
-      .then(() => {
-        console.log('verifyCrypt() Done')
-      })
+class EasyJackal {
+
+  wallet: IWalletHandler
+
+  constructor(wallet: IWalletHandler) {
+
+    //    const mnemonicWallet = await MnemonicWallet.create(mnemonic)
+    //     const wallet = await WalletHandler.trackWallet(testnet, mnemonicWallet)
+    //
+
+    this.wallet = wallet
   }
-  if (downloadOnly) {
-    await tryDownload()
-      .then(() => {
-        console.log('tryDownload() Done')
-      })
-  } else {
-    await run()
-      .then(() => {
-        console.log('run() Done')
-      })
+
+  // if owner is null,  we assume it's the users
+  async downloadFile(path: string, owner: string | null): Promise<ArrayBuffer> {
+    const fileIo = await this.wallet.makeFileIoHandler('1.0.9')
+    if (!fileIo) throw new Error('no FileIo')
+
+    const directory = await fileIo.downloadFolder("s/" + path)
+    const downloadHandler = await fileIo.downloadFile({
+        rawPath: directory.getMyChildPath(fileName),
+        owner: owner ? owner : this.wallet.getJackalAddress()
+      },
+      {
+        track: 0
+      }) as IFileDownloadHandler
+
+    return await downloadHandler.receiveBacon().arrayBuffer()
   }
+
+  async uploadFile(data: Buffer) {
+    const m = await MnemonicWallet.create(mnemonic)
+    const w = await WalletHandler.trackWallet(testnet, m)
+
+    const fileIo = await w.makeFileIoHandler('1.0.9')
+    if (!fileIo) throw new Error('no FileIo')
+
+    fileIo.forceProvider({
+      address: 'string',
+      ip: 'https://testnet5.jwillette.net',
+      totalspace: 'string',
+      burnedContracts: 'string',
+      creator: 'string',
+      keybaseIdentity: 'string',
+      authClaimers: []
+    })
+
+    await fileIo.generateInitialDirs(null, [sampleDir])
+
+    await fileIo.verifyFoldersExist([sampleDir])
+    const dir = await fileIo.downloadFolder("s/" + sampleDir)
+
+    const toUpload = new File([data], fileName, {type: "text/plain"});
+
+    // @ts-ignore
+    const handler = await FileUploadHandler.trackFile(toUpload, dir.getMyPath())
+
+    const uploadList: IUploadList = {}
+    uploadList[fileName] = {
+      data: null,
+      exists: false,
+      handler: handler,
+      key: fileName,
+      uploadable: await handler.getForUpload()
+    }
+
+    const tracker = {timer: 0, complete: 0}
+    await fileIo.staggeredUploadFiles(uploadList, dir, tracker)
+  }
+}
+
+(async function () {
+  await run()
+    .then(() => {
+      console.log('run() Done')
+    })
 })()
