@@ -1,7 +1,6 @@
 import * as fs from 'node:fs'
-import type {IFileDownloadHandler, IUploadList} from '@jackallabs/jackal.nodejs'
-import {FileIo, FileUploadHandler, IWalletHandler, MnemonicWallet, WalletHandler} from '@jackallabs/jackal.nodejs'
-import ErrnoException = NodeJS.ErrnoException;
+import type {IFileDownloadHandler, IFileIo, IUploadList} from '@jackallabs/jackal.nodejs'
+import {FileUploadHandler, IWalletHandler, MnemonicWallet, WalletHandler} from '@jackallabs/jackal.nodejs'
 
 const mnemonic = 'capital chunk piano supreme photo beef age boy retire vote kitchen under'
 const fileName = 'kyve-test.toml.txt'
@@ -22,10 +21,15 @@ class EasyJackal {
     this.wallet = wallet
   }
 
-  // if owner is null,  we assume it's the users
-  async downloadFile(path: string, owner: string | null = null): Promise<ArrayBuffer> {
+  async getFileIO(): Promise<IFileIo> {
     const fileIo = await this.wallet.makeFileIoHandler('1.1.x')
     if (!fileIo) throw new Error('no FileIo')
+    return fileIo
+  }
+
+  // if owner is null,  we assume it's the users
+  async downloadFile(path: string, owner: string | null = null): Promise<ArrayBuffer> {
+    const fileIo = await this.getFileIO()
 
     const directory = await fileIo.downloadFolder("s/" + path)
     const downloadHandler = await fileIo.downloadFile({
@@ -39,9 +43,8 @@ class EasyJackal {
     return await downloadHandler.receiveBacon().arrayBuffer()
   }
 
-  async uploadFile(data: Buffer) {
-    const fileIo = await this.wallet.makeFileIoHandler('1.1.x')
-    if (!fileIo) throw new Error('no FileIo')
+  async uploadFile(data: Buffer, directory: string) {
+    const fileIo = await this.getFileIO()
 
     fileIo.forceProvider({
       address: 'string',
@@ -53,10 +56,10 @@ class EasyJackal {
       authClaimers: []
     })
 
-    await fileIo.generateInitialDirs(null, [sampleDir])
+    await fileIo.generateInitialDirs(null, [directory])
 
-    await fileIo.verifyFoldersExist([sampleDir])
-    const dir = await fileIo.downloadFolder("s/" + sampleDir)
+    await fileIo.verifyFoldersExist([directory])
+    const dir = await fileIo.downloadFolder("s/" + directory)
 
     const toUpload = new File([data], fileName, {type: "text/plain"});
 
@@ -84,9 +87,9 @@ class EasyJackal {
 
   const data = fs.readFileSync(`./test-files/${fileName}`)
 
-  await jackal.uploadFile(data)
+  await jackal.uploadFile(data, sampleDir)
 
-  const fileContent: ArrayBuffer = await jackal.downloadFile("")
+  const fileContent: ArrayBuffer = await jackal.downloadFile(sampleDir)
 
 
   fs.writeFileSync(
