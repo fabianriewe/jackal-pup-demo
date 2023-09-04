@@ -2,16 +2,6 @@ import * as fs from 'node:fs'
 import type {IFileDownloadHandler, IFileIo, IUploadList} from '@jackallabs/jackal.nodejs'
 import {FileUploadHandler, IWalletHandler, MnemonicWallet, WalletHandler} from '@jackallabs/jackal.nodejs'
 
-const mnemonic = 'capital chunk piano supreme photo beef age boy retire vote kitchen under'
-const fileName = 'kyve-test.toml.txt'
-const sampleDir = 'Node3'
-
-const signerChain = 'lupulella-2'
-const testnet = {
-  signerChain,
-  queryAddr: 'https://testnet-grpc.jackalprotocol.com',
-  txAddr: 'https://testnet-rpc.jackalprotocol.com'
-}
 
 class EasyJackal {
 
@@ -28,7 +18,7 @@ class EasyJackal {
   }
 
   // if owner is null,  we assume it's the users
-  async downloadFile(path: string, owner: string | null = null): Promise<ArrayBuffer> {
+  async downloadFile(path: string, fileName: string, owner: string | null = null): Promise<ArrayBuffer> {
     const fileIo = await this.getFileIO()
 
     const directory = await fileIo.downloadFolder("s/" + path)
@@ -43,7 +33,7 @@ class EasyJackal {
     return await downloadHandler.receiveBacon().arrayBuffer()
   }
 
-  async uploadFile(data: Buffer, directory: string) {
+  async uploadFile(data: Buffer, fileName: string, directory: string) {
     const fileIo = await this.getFileIO()
 
     fileIo.forceProvider({
@@ -80,6 +70,17 @@ class EasyJackal {
 }
 
 (async function () {
+
+  const mnemonic = 'capital chunk piano supreme photo beef age boy retire vote kitchen under'
+  const fileName = 'kyve-test.toml.txt'
+  const sampleDir = 'Node3'
+
+  const testnet = {
+    signerChain: 'lupulella-2',
+    queryAddr: 'https://testnet-grpc.jackalprotocol.com',
+    txAddr: 'https://testnet-rpc.jackalprotocol.com'
+  }
+
   const mnemonicWallet = await MnemonicWallet.create(mnemonic)
   const wallet = await WalletHandler.trackWallet(testnet, mnemonicWallet)
 
@@ -87,10 +88,9 @@ class EasyJackal {
 
   const data = fs.readFileSync(`./test-files/${fileName}`)
 
-  await jackal.uploadFile(data, sampleDir)
+  await jackal.uploadFile(data, fileName, sampleDir)
 
-  const fileContent: ArrayBuffer = await jackal.downloadFile(sampleDir)
-
+  const fileContent: ArrayBuffer = await jackal.downloadFile(sampleDir, fileName)
 
   fs.writeFileSync(
     `./test-files/dl/${fileName}`,
