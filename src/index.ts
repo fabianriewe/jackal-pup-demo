@@ -18,7 +18,7 @@ class EasyJackal {
   }
 
   // if owner is null,  we assume it's the users
-  async downloadFile(path: string, fileName: string, owner: string | null = null): Promise<ArrayBuffer> {
+  async download(path: string, fileName: string, owner: string | null = null): Promise<ArrayBuffer> {
     const fileIo = await this.getFileIO()
 
     const directory = await fileIo.downloadFolder("s/" + path)
@@ -33,7 +33,7 @@ class EasyJackal {
     return await downloadHandler.receiveBacon().arrayBuffer()
   }
 
-  async uploadFile(data: Buffer, fileName: string, directory: string) {
+  async upload(data: Buffer, fileName: string, directory: string) {
     const fileIo = await this.getFileIO()
 
     fileIo.forceProvider({
@@ -88,9 +88,9 @@ class EasyJackal {
 
   const data = fs.readFileSync(`./test-files/${fileName}`)
 
-  await jackal.uploadFile(data, fileName, sampleDir)
+  await jackal.upload(data, fileName, sampleDir)
 
-  const fileContent: ArrayBuffer = await jackal.downloadFile(sampleDir, fileName)
+  const fileContent: ArrayBuffer = await jackal.download(sampleDir, fileName)
 
   fs.writeFileSync(
     `./test-files/dl/${fileName}`,
