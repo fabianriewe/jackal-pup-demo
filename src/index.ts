@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
 import type {IFileDownloadHandler, IUploadList} from '@jackallabs/jackal.nodejs'
-import {FileUploadHandler, IWalletHandler, MnemonicWallet, WalletHandler} from '@jackallabs/jackal.nodejs'
+import {FileIo, FileUploadHandler, IWalletHandler, MnemonicWallet, WalletHandler} from '@jackallabs/jackal.nodejs'
 import ErrnoException = NodeJS.ErrnoException;
 
 const mnemonic = 'capital chunk piano supreme photo beef age boy retire vote kitchen under'
@@ -14,103 +14,17 @@ const testnet = {
   txAddr: 'https://testnet-rpc.jackalprotocol.com'
 }
 
-async function run() {
-  const m = await MnemonicWallet.create(mnemonic)
-  const w = await WalletHandler.trackWallet(testnet, m)
-
-  const fileIo = await w.makeFileIoHandler('1.0.9')
-  if (!fileIo) throw new Error('no FileIo')
-
-  fileIo.forceProvider({
-    address: 'string',
-    ip: 'https://testnet5.jwillette.net',
-    totalspace: 'string',
-    burnedContracts: 'string',
-    creator: 'string',
-    keybaseIdentity: 'string',
-    authClaimers: []
-  })
-
-  await fileIo.generateInitialDirs(null, [sampleDir])
-
-  await fileIo.verifyFoldersExist([sampleDir])
-  const dir = await fileIo.downloadFolder("s/" + sampleDir)
-
-  fs.readFile(`./test-files/${fileName}`, async function (err: ErrnoException | null, f: Buffer) {
-    if (err) console.error(err)
-    const toUpload = new File([f], fileName, {type: "text/plain"});
-
-    // @ts-ignore
-    const handler = await FileUploadHandler.trackFile(toUpload, dir.getMyPath())
-
-    const uploadList: IUploadList = {}
-    uploadList[fileName] = {
-      data: null,
-      exists: false,
-      handler: handler,
-      key: fileName,
-      uploadable: await handler.getForUpload()
-    }
-
-    const tracker = {timer: 0, complete: 0}
-    console.log("I AM BEFORE THE UPLOAD")
-    await fileIo.staggeredUploadFiles(uploadList, dir, tracker)
-
-    const dirAgain = await fileIo.downloadFolder("s/" + sampleDir)
-    const dl = await fileIo.downloadFile({
-        rawPath: dirAgain.getMyChildPath(fileName),
-        owner: w.getJackalAddress()
-      },
-      {
-        track: 0
-      }) as IFileDownloadHandler
-
-    fs.writeFileSync(
-      `./test-files/dl/${fileName}`,
-      new Uint8Array(await dl.receiveBacon().arrayBuffer()),
-      {}
-    )
-  })
-}
-
-async function tryDownload() {
-  const m = await MnemonicWallet.create(mnemonic)
-  const w = await WalletHandler.trackWallet(testnet, m)
-  const fileIo = await w.makeFileIoHandler('1.0.9')
-  if (!fileIo) throw new Error('no FileIo')
-
-  const dirAgain = await fileIo.downloadFolder("s/" + sampleDir)
-  const dl = await fileIo.downloadFile({
-      rawPath: dirAgain.getMyChildPath(fileName),
-      owner: w.getJackalAddress()
-    },
-    {
-      track: 0
-    }) as IFileDownloadHandler
-
-  fs.writeFileSync(
-    `./test-files/dl/${fileName}`,
-    new Uint8Array(await dl.receiveBacon().arrayBuffer()),
-    {}
-  )
-}
-
 class EasyJackal {
 
   wallet: IWalletHandler
 
   constructor(wallet: IWalletHandler) {
-
-    //    const mnemonicWallet = await MnemonicWallet.create(mnemonic)
-    //     const wallet = await WalletHandler.trackWallet(testnet, mnemonicWallet)
-    //
-
     this.wallet = wallet
   }
 
   // if owner is null,  we assume it's the users
-  async downloadFile(path: string, owner: string | null): Promise<ArrayBuffer> {
-    const fileIo = await this.wallet.makeFileIoHandler('1.0.9')
+  async downloadFile(path: string, owner: string | null = null): Promise<ArrayBuffer> {
+    const fileIo = await this.wallet.makeFileIoHandler('1.1.x')
     if (!fileIo) throw new Error('no FileIo')
 
     const directory = await fileIo.downloadFolder("s/" + path)
@@ -126,10 +40,7 @@ class EasyJackal {
   }
 
   async uploadFile(data: Buffer) {
-    const m = await MnemonicWallet.create(mnemonic)
-    const w = await WalletHandler.trackWallet(testnet, m)
-
-    const fileIo = await w.makeFileIoHandler('1.0.9')
+    const fileIo = await this.wallet.makeFileIoHandler('1.1.x')
     if (!fileIo) throw new Error('no FileIo')
 
     fileIo.forceProvider({
@@ -149,7 +60,6 @@ class EasyJackal {
 
     const toUpload = new File([data], fileName, {type: "text/plain"});
 
-    // @ts-ignore
     const handler = await FileUploadHandler.trackFile(toUpload, dir.getMyPath())
 
     const uploadList: IUploadList = {}
@@ -167,8 +77,21 @@ class EasyJackal {
 }
 
 (async function () {
-  await run()
-    .then(() => {
-      console.log('run() Done')
-    })
+  const mnemonicWallet = await MnemonicWallet.create(mnemonic)
+  const wallet = await WalletHandler.trackWallet(testnet, mnemonicWallet)
+
+  const jackal = new EasyJackal(wallet)
+
+  const data = fs.readFileSync(`./test-files/${fileName}`)
+
+  await jackal.uploadFile(data)
+
+  const fileContent: ArrayBuffer = await jackal.downloadFile("")
+
+
+  fs.writeFileSync(
+    `./test-files/dl/${fileName}`,
+    new Uint8Array(fileContent),
+    {}
+  )
 })()
